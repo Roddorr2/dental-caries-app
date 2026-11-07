@@ -65,7 +65,17 @@ class Settings(BaseSettings):
     @property
     def allowed_origins_list(self) -> list[str]:
         """Convierte la string de orígenes a lista para FastAPI CORSMiddleware"""
-        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+        origins = [
+            origin.strip().rstrip("/")
+            for origin in self.ALLOWED_ORIGINS.split(",")
+            if origin.strip()
+        ]
+        if "*" in origins:
+            raise ValueError(
+                "ALLOWED_ORIGINS debe enumerar orígenes explícitos; "
+                "no se permite '*' con credenciales habilitadas."
+            )
+        return origins
 
     MAX_IMAGES_PER_STUDY: int = Field(
         default=10,
