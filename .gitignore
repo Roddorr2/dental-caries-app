@@ -114,6 +114,7 @@ wandb/
 *.onnx
 *.engine
 *.bin
+!ml/models/best.pt
 
 # ==============================
 # LOGS & TEMPORARY FILES
