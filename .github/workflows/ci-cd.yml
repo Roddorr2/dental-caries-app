@@ -1,0 +1,198 @@
+name: CDSS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # 1. Pruebas y Validación del Backend (FastAPI + DDD + Pytest)
+  # ============================================================
+  backend-test:
+    name: Backend Tests & Quality
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Dependencias del Sistema (OpenCV / GL)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar Dependencias Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar Pruebas Unitarias de Dominio (Pytest)
+        run: |
+          pytest tests/unit -v --durations=10
+
+  # ============================================================
+  # 2. Compilación y Verificación de Frontend (React + Vite)
+  # ============================================================
+  frontend-build:
+    name: Frontend Build & Lint
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package.json
+
+      - name: Instalar Dependencias NPM
+        run: npm install
+
+      - name: Compilar Frontend para Producción (Vite Build)
+        run: npm run build
+
+      - name: Verificar Integridad de Artefactos (dist/)
+        run: |
+          test -d dist && test -f dist/index.html || exit 1
+          echo "Artefactos de frontend generados correctamente."
+
+  # ============================================================
+  # 3. Construcción y Publicación de Contenedores Docker (GHCR)
+  # ============================================================
+  docker-package:
+    name: Build & Push Docker Images
+    needs: [ backend-test, frontend-build ]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Iniciar Sesión en GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Backend Container Image
+      - name: Metadatos para Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-backend
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+
+      - name: Construir y Publicar Imagen Docker Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Frontend Container Image
+      - name: Metadatos para Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-frontend
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+
+      - name: Construir y Publicar Imagen Docker Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # 4. Despliegue Automatizado a Servidor de Producción (CD)
+  # ============================================================
+  deploy-production:
+    name: Deploy to Production Server
+    needs: docker-package
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && env.CAN_DEPLOY == 'true'
+    env:
+      CAN_DEPLOY: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_SSH_KEY != '' }}
+
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Despliegue Remoto vía SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER || 'root' }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            echo "Iniciando actualización en el servidor de producción..."
+            cd /opt/dental-app || cd ~/dental-app
+            
+            # Autenticación y pull de nuevas imágenes
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            docker compose pull backend frontend
+            
+            # Aplicar migraciones pendientes
+            docker compose run --rm backend alembic upgrade head
+            
+            # Reiniciar servicios con cero tiempo de caída
+            docker compose up -d --remove-orphans
+            
+            # Verificación de estado de salud
+            sleep 5
+            docker compose ps
+            echo "Despliegue completado con éxito."
+

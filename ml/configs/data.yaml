@@ -1,0 +1,6 @@
+path: ../../dataset/selected
+train: images/train
+val: images/val
+test: images/test
+nc: 2
+names: ['caries_permanente', 'caries_decidua']

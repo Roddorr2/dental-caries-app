@@ -1,0 +1,13 @@
+[run]
+source = app/domain
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    pass
+    \.\.\.
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod

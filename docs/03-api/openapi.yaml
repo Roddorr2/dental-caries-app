@@ -1,0 +1,1169 @@
+openapi: 3.1.0
+info:
+  title: Dental App — Sistema de Apoyo al Diagnóstico Odontológico
+  description: 'API REST con ML/DL para detección de patologías dentales intraorales.
+    Arquitectura DDD + CQRS. Modelos: YOLOv8n (producción), SVM/RF con HOG+LBP (comparación).'
+  contact:
+    name: Rodrigo
+  version: 1.0.0
+paths:
+  /api/v1/pacientes/:
+    post:
+      tags:
+      - Pacientes
+      summary: Registrar nuevo paciente
+      description: "Registra un nuevo paciente en el sistema.\n\nParameters\n----------\n\
+        body : PacienteCreate\n    Datos del paciente a registrar.\n\nReturns\n-------\n\
+        dict\n    ID del paciente creado.\n\nRaises\n------\nHTTPException 409\n \
+        \   Si el DNI ya está registrado.\nHTTPException 422\n    Si algún dato no\
+        \ supera la validación de dominio."
+      operationId: registrar_paciente_api_v1_pacientes__post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PacienteCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Registrar Paciente Api V1 Pacientes  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Pacientes
+      summary: Listar pacientes activos
+      description: "Lista pacientes en estado ACTIVO ordenados por apellido.\n\nParameters\n\
+        ----------\nlimit : int\n    Máximo de registros a retornar.\noffset : int\n\
+        \    Desplazamiento para paginación.\n\nReturns\n-------\nlist[PacienteResponse]\n\
+        \    Lista de pacientes activos."
+      operationId: listar_pacientes_api_v1_pacientes__get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PacienteResponse'
+                title: Response Listar Pacientes Api V1 Pacientes  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/pacientes/{paciente_id}:
+    get:
+      tags:
+      - Pacientes
+      summary: Obtener paciente por ID
+      description: "Obtiene un paciente por su ID.\n\nParameters\n----------\npaciente_id\
+        \ : UUID\n    ID del paciente.\n\nReturns\n-------\nPacienteResponse\n   \
+        \ Datos del paciente.\n\nRaises\n------\nHTTPException 404\n    Si el paciente\
+        \ no existe."
+      operationId: obtener_paciente_api_v1_pacientes__paciente_id__get
+      parameters:
+      - name: paciente_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Paciente Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PacienteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/estudios/:
+    post:
+      tags:
+      - Estudios
+      summary: Crear estudio imagenológico
+      description: "Crea un nuevo estudio imagenológico para un paciente.\n\nParameters\n\
+        ----------\nbody : EstudioCreate\n    Datos del estudio.\n\nReturns\n-------\n\
+        dict\n    ID del estudio creado.\n\nRaises\n------\nHTTPException 404\n  \
+        \  Si el paciente no existe.\nHTTPException 409\n    Si el paciente está inactivo."
+      operationId: crear_estudio_api_v1_estudios__post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstudioCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Crear Estudio Api V1 Estudios  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/estudios/{estudio_id}:
+    get:
+      tags:
+      - Estudios
+      summary: Obtener estudio por ID
+      description: "Obtiene un estudio por su ID, incluyendo sus imágenes.\n\nParameters\n\
+        ----------\nestudio_id : UUID\n    ID del estudio.\n\nReturns\n-------\nEstudioResponse\n\
+        \    Datos del estudio con imágenes.\n\nRaises\n------\nHTTPException 404\n\
+        \    Si el estudio no existe."
+      operationId: obtener_estudio_api_v1_estudios__estudio_id__get
+      parameters:
+      - name: estudio_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Estudio Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstudioResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/estudios/{estudio_id}/imagenes:
+    post:
+      tags:
+      - Estudios
+      summary: Agregar imagen a un estudio
+      description: "Agrega una imagen intraoral a un estudio existente.\n\nParameters\n\
+        ----------\nestudio_id : UUID\n    ID del estudio.\nbody : ImagenCreate\n\
+        \    Datos de la imagen.\n\nReturns\n-------\ndict\n    ID de la imagen agregada.\n\
+        \nRaises\n------\nHTTPException 404\n    Si el estudio no existe.\nHTTPException\
+        \ 409\n    Si la imagen está duplicada o el dominio rechaza la operación."
+      operationId: agregar_imagen_api_v1_estudios__estudio_id__imagenes_post
+      parameters:
+      - name: estudio_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Estudio Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImagenCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Agregar Imagen Api V1 Estudios  Estudio Id  Imagenes
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/estudios/{estudio_id}/analisis:
+    post:
+      tags:
+      - Estudios
+      summary: Solicitar análisis IA
+      description: "Solicita análisis IA sobre un estudio imagenológico.\n\nCrea una\
+        \ InferenciaIA en estado PENDIENTE y marca el estudio\ncomo EN_ANALISIS. El\
+        \ worker toma la tarea de forma asíncrona.\n\nParameters\n----------\nestudio_id\
+        \ : UUID\n    ID del estudio a analizar.\nbody : SolicitarAnalisisRequest\n\
+        \    ID del modelo ML a usar.\n\nReturns\n-------\ndict\n    ID de la inferencia\
+        \ creada.\n\nRaises\n------\nHTTPException 409\n    Si el estudio no puede\
+        \ ser analizado."
+      operationId: solicitar_analisis_api_v1_estudios__estudio_id__analisis_post
+      parameters:
+      - name: estudio_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Estudio Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitarAnalisisRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Solicitar Analisis Api V1 Estudios  Estudio Id  Analisis
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/diagnosticos/pendientes:
+    get:
+      tags:
+      - Diagnósticos
+      summary: Cola de diagnósticos pendientes de revisión
+      description: "Retorna los diagnósticos pendientes de revisión.\n\nLee desde\
+        \ rm_cola_revision (read model CQRS) — sin JOINs.\n\nParameters\n----------\n\
+        solo_segunda_opinion : bool\n    Si True, retorna solo casos con confianza\
+        \ BAJA.\nlimit : int\n    Máximo de registros.\noffset : int\n    Desplazamiento\
+        \ para paginación.\n\nReturns\n-------\nlist[dict]\n    Lista de entradas\
+        \ de la cola."
+      operationId: cola_revision_api_v1_diagnosticos_pendientes_get
+      parameters:
+      - name: solo_segunda_opinion
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Solo Segunda Opinion
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                title: Response Cola Revision Api V1 Diagnosticos Pendientes Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/diagnosticos/{diagnostico_id}:
+    get:
+      tags:
+      - Diagnósticos
+      summary: Obtener diagnóstico por ID
+      description: "Obtiene un diagnóstico por su ID, incluyendo hallazgos.\n\nParameters\n\
+        ----------\ndiagnostico_id : UUID\n    ID del diagnóstico.\n\nReturns\n-------\n\
+        DiagnosticoResponse\n    Datos del diagnóstico con hallazgos.\n\nRaises\n\
+        ------\nHTTPException 404\n    Si el diagnóstico no existe."
+      operationId: obtener_diagnostico_api_v1_diagnosticos__diagnostico_id__get
+      parameters:
+      - name: diagnostico_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Diagnostico Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosticoResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/diagnosticos/{diagnostico_id}/validar:
+    post:
+      tags:
+      - Diagnósticos
+      summary: Validar diagnóstico sugerido por IA
+      description: "El odontólogo valida un diagnóstico sugerido por IA.\n\nParameters\n\
+        ----------\ndiagnostico_id : UUID\n    ID del diagnóstico a validar.\nbody\
+        \ : ValidarRequest\n    ID del odontólogo y notas de validación.\n\nRaises\n\
+        ------\nHTTPException 404\n    Si el diagnóstico u odontólogo no existen.\n\
+        HTTPException 409\n    Si el dominio rechaza la operación."
+      operationId: validar_diagnostico_api_v1_diagnosticos__diagnostico_id__validar_post
+      parameters:
+      - name: diagnostico_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Diagnostico Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidarRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/diagnosticos/{diagnostico_id}/rechazar:
+    post:
+      tags:
+      - Diagnósticos
+      summary: Rechazar diagnóstico sugerido por IA
+      description: "El odontólogo rechaza un diagnóstico sugerido por IA.\n\nParameters\n\
+        ----------\ndiagnostico_id : UUID\n    ID del diagnóstico a rechazar.\nbody\
+        \ : RechazarRequest\n    ID del odontólogo y motivo del rechazo.\n\nRaises\n\
+        ------\nHTTPException 404\n    Si el diagnóstico u odontólogo no existen.\n\
+        HTTPException 409\n    Si el dominio rechaza la operación."
+      operationId: rechazar_diagnostico_api_v1_diagnosticos__diagnostico_id__rechazar_post
+      parameters:
+      - name: diagnostico_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Diagnostico Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RechazarRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/inferencias/{inferencia_id}:
+    get:
+      tags:
+      - Inferencias
+      summary: Obtener estado de una inferencia
+      description: "Retorna el estado actual de una inferencia IA.\n\nÚtil para que\
+        \ el frontend haga polling del estado del pipeline\nmientras el worker procesa\
+        \ la tarea.\n\nParameters\n----------\ninferencia_id : UUID\n    ID de la\
+        \ inferencia.\n\nReturns\n-------\nInferenciaResponse\n    Estado actual de\
+        \ la inferencia.\n\nRaises\n------\nHTTPException 404\n    Si la inferencia\
+        \ no existe."
+      operationId: obtener_inferencia_api_v1_inferencias__inferencia_id__get
+      parameters:
+      - name: inferencia_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Inferencia Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenciaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/modelos/:
+    get:
+      tags:
+      - Modelos ML
+      summary: Listar modelos ML registrados
+      description: "Lista todos los modelos ML registrados en el sistema.\n\nReturns\n\
+        -------\nlist[ModeloResponse]\n    Lista de modelos con sus métricas de entrenamiento."
+      operationId: listar_modelos_api_v1_modelos__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ModeloResponse'
+                type: array
+                title: Response Listar Modelos Api V1 Modelos  Get
+  /api/v1/modelos/{modelo_id}/estadisticas:
+    get:
+      tags:
+      - Modelos ML
+      summary: Estadísticas de producción de un modelo
+      description: "Retorna estadísticas de rendimiento de un modelo en producción.\n\
+        \nCalculadas sobre diagnósticos reales validados por odontólogos.\nLee desde\
+        \ rm_estadisticas_modelo (read model CQRS).\n\nParameters\n----------\nmodelo_id\
+        \ : UUID\n    ID del modelo. Retorna solo ese modelo.\n\nReturns\n-------\n\
+        list[EstadisticasResponse]\n    Estadísticas del modelo."
+      operationId: estadisticas_modelo_api_v1_modelos__modelo_id__estadisticas_get
+      parameters:
+      - name: modelo_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Modelo Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EstadisticasResponse'
+                title: Response Estadisticas Modelo Api V1 Modelos  Modelo Id  Estadisticas
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health:
+    get:
+      tags:
+      - Health
+      summary: Health Check
+      description: "Verifica que el servidor está corriendo.\n\nReturns\n-------\n\
+        dict\n    Estado del servidor y versión."
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Health Check Health Get
+components:
+  schemas:
+    DiagnosticoResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        estudio_id:
+          type: string
+          format: uuid
+          title: Estudio Id
+        paciente_id:
+          type: string
+          format: uuid
+          title: Paciente Id
+        estado:
+          type: string
+          title: Estado
+        confianza_global:
+          type: number
+          title: Confianza Global
+        categoria_confianza:
+          type: string
+          title: Categoria Confianza
+        hallazgos:
+          items:
+            $ref: '#/components/schemas/HallazgoResponse'
+          type: array
+          title: Hallazgos
+          default: []
+        fecha_generacion:
+          type: string
+          format: date-time
+          title: Fecha Generacion
+        fecha_validacion:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Fecha Validacion
+        notas_validacion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notas Validacion
+        motivo_rechazo:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Motivo Rechazo
+      type: object
+      required:
+      - id
+      - estudio_id
+      - paciente_id
+      - estado
+      - confianza_global
+      - categoria_confianza
+      - fecha_generacion
+      title: DiagnosticoResponse
+      description: "Response body para un diagnóstico asistido por IA.\n\nAttributes\n\
+        ----------\nid : UUID\n    Identificador único del diagnóstico.\nestudio_id\
+        \ : UUID\n    ID del estudio analizado.\npaciente_id : UUID\n    ID del paciente.\n\
+        estado : str\n    Estado: SUGERIDO_IA | EN_REVISION | VALIDADO | RECHAZADO.\n\
+        confianza_global : float\n    Confianza global del diagnóstico (0.0 - 1.0).\n\
+        categoria_confianza : str\n    Categoría: BAJA | MEDIA | ALTA.\nhallazgos\
+        \ : list[HallazgoResponse]\n    Patologías detectadas.\nfecha_generacion :\
+        \ datetime\n    Timestamp de generación por IA.\nfecha_validacion : datetime\
+        \ | None\n    Timestamp de validación. None si no ha sido validado.\nnotas_validacion\
+        \ : str | None\n    Notas del odontólogo al validar. None si no aplica.\n\
+        motivo_rechazo : str | None\n    Motivo del rechazo. None si no aplica."
+    EstadisticasResponse:
+      properties:
+        modelo_ml_id:
+          type: string
+          format: uuid
+          title: Modelo Ml Id
+        nombre_modelo:
+          type: string
+          title: Nombre Modelo
+        version:
+          type: string
+          title: Version
+        total_diagnosticos:
+          type: integer
+          title: Total Diagnosticos
+        total_validados:
+          type: integer
+          title: Total Validados
+        total_rechazados:
+          type: integer
+          title: Total Rechazados
+        tasa_validacion:
+          type: number
+          title: Tasa Validacion
+        tasa_segunda_opinion:
+          type: number
+          title: Tasa Segunda Opinion
+      type: object
+      required:
+      - modelo_ml_id
+      - nombre_modelo
+      - version
+      - total_diagnosticos
+      - total_validados
+      - total_rechazados
+      - tasa_validacion
+      - tasa_segunda_opinion
+      title: EstadisticasResponse
+      description: "Response body para estadísticas de un modelo ML en producción.\n\
+        \nCalculadas sobre diagnósticos reales validados por odontólogos.\n\nAttributes\n\
+        ----------\nmodelo_ml_id : UUID\n    ID del modelo.\nnombre_modelo : str\n\
+        \    Nombre del modelo.\nversion : str\n    Versión del modelo.\ntotal_diagnosticos\
+        \ : int\n    Total de diagnósticos generados.\ntotal_validados : int\n   \
+        \ Total de diagnósticos validados por odontólogos.\ntotal_rechazados : int\n\
+        \    Total de diagnósticos rechazados.\ntasa_validacion : float\n    Tasa\
+        \ de validación (validados / total).\ntasa_segunda_opinion : float\n    Tasa\
+        \ de casos con confianza BAJA que requirieron segunda opinión."
+    EstudioCreate:
+      properties:
+        paciente_id:
+          type: string
+          format: uuid
+          title: Paciente Id
+        tipo_examen:
+          type: string
+          pattern: ^(FOTOGRAFIA_INTRAORAL|SERIE_COMPLETA|OCLUSAL_MANDIBULAR|OCLUSAL_MAXILAR|FRONTAL_VESTIBULAR|LATERAL_DERECHA|LATERAL_IZQUIERDA)$
+          title: Tipo Examen
+        region_examinada:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Region Examinada
+        observaciones:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observaciones
+      type: object
+      required:
+      - paciente_id
+      - tipo_examen
+      title: EstudioCreate
+      description: "Request body para crear un nuevo estudio imagenológico.\n\nAttributes\n\
+        ----------\npaciente_id : UUID\n    ID del paciente que recibe el estudio.\n\
+        tipo_examen : str\n    Tipo de examen: FOTOGRAFIA_INTRAORAL | SERIE_COMPLETA\
+        \ | OCLUSAL_MANDIBULAR |\n    OCLUSAL_MAXILAR | FRONTAL_VESTIBULAR | LATERAL_DERECHA\
+        \ | LATERAL_IZQUIERDA.\nregion_examinada : str | None\n    Región clínica\
+        \ examinada. Opcional.\nobservaciones : str | None\n    Notas clínicas adicionales.\
+        \ Opcional."
+    EstudioResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        paciente_id:
+          type: string
+          format: uuid
+          title: Paciente Id
+        tipo_examen:
+          type: string
+          title: Tipo Examen
+        estado_procesamiento:
+          type: string
+          title: Estado Procesamiento
+        imagenes:
+          items:
+            $ref: '#/components/schemas/ImagenResponse'
+          type: array
+          title: Imagenes
+          default: []
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - paciente_id
+      - tipo_examen
+      - estado_procesamiento
+      - created_at
+      title: EstudioResponse
+      description: "Response body para un estudio imagenológico.\n\nAttributes\n----------\n\
+        id : UUID\n    Identificador único del estudio.\npaciente_id : UUID\n    ID\
+        \ del paciente.\ntipo_examen : str\n    Tipo de examen.\nestado_procesamiento\
+        \ : str\n    Estado actual: PENDIENTE | EN_ANALISIS | PROCESADO.\nimagenes\
+        \ : list[ImagenResponse]\n    Imágenes asociadas al estudio.\ncreated_at :\
+        \ datetime\n    Timestamp de creación."
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HallazgoResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        imagen_id:
+          type: string
+          format: uuid
+          title: Imagen Id
+        tipo_patologia:
+          type: string
+          title: Tipo Patologia
+        severidad:
+          type: string
+          title: Severidad
+        confianza:
+          type: number
+          title: Confianza
+        diente_numero:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Diente Numero
+        cuadrante:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Cuadrante
+        bbox_x:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bbox X
+        bbox_y:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bbox Y
+        bbox_width:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bbox Width
+        bbox_height:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bbox Height
+        descripcion_clinica:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Descripcion Clinica
+      type: object
+      required:
+      - id
+      - imagen_id
+      - tipo_patologia
+      - severidad
+      - confianza
+      title: HallazgoResponse
+      description: "Response body para un hallazgo clínico detectado por IA.\n\nAttributes\n\
+        ----------\nid : UUID\n    Identificador único del hallazgo.\nimagen_id :\
+        \ UUID\n    ID de la imagen donde se detectó.\ntipo_patologia : str\n    Tipo\
+        \ de patología: CARIES | FRACTURA | CALCULO_DENTAL.\nseveridad : str\n   \
+        \ Severidad: LEVE | MODERADA | SEVERA.\nconfianza : float\n    Confianza del\
+        \ modelo (0.0 - 1.0).\ndiente_numero : int | None\n    Número de diente en\
+        \ notación FDI (11-48). Opcional.\ncuadrante : int | None\n    Cuadrante dental\
+        \ (1-4). Opcional.\nbbox_x : float | None\n    Coordenada X del bounding box.\
+        \ Opcional.\nbbox_y : float | None\n    Coordenada Y del bounding box. Opcional.\n\
+        bbox_width : float | None\n    Ancho del bounding box. Opcional.\nbbox_height\
+        \ : float | None\n    Alto del bounding box. Opcional.\ndescripcion_clinica\
+        \ : str | None\n    Descripción clínica. Opcional."
+    ImagenCreate:
+      properties:
+        tipo_vista:
+          type: string
+          pattern: ^(OCLUSAL_MANDIBULAR|OCLUSAL_MAXILAR|FRONTAL_VESTIBULAR|LATERAL_DERECHA|LATERAL_IZQUIERDA)$
+          title: Tipo Vista
+        formato:
+          type: string
+          pattern: ^(jpg|jpeg|png|JPG|JPEG|PNG)$
+          title: Formato
+        ruta_almacenamiento:
+          type: string
+          maxLength: 500
+          title: Ruta Almacenamiento
+        nombre_archivo:
+          type: string
+          maxLength: 255
+          title: Nombre Archivo
+        hash_sha256:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Hash Sha256
+        calidad_suficiente:
+          type: boolean
+          title: Calidad Suficiente
+        nitidez:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Nitidez
+        iluminacion:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Iluminacion
+      type: object
+      required:
+      - tipo_vista
+      - formato
+      - ruta_almacenamiento
+      - nombre_archivo
+      - hash_sha256
+      - calidad_suficiente
+      title: ImagenCreate
+      description: "Request body para agregar una imagen a un estudio.\n\nAttributes\n\
+        ----------\ntipo_vista : str\n    Vista de la imagen: OCLUSAL_MANDIBULAR |\
+        \ OCLUSAL_MAXILAR |\n    FRONTAL_VESTIBULAR | LATERAL_DERECHA | LATERAL_IZQUIERDA.\n\
+        formato : str\n    Formato del archivo: jpg | jpeg | png.\nruta_almacenamiento\
+        \ : str\n    Ruta donde fue guardado el archivo en storage.\nnombre_archivo\
+        \ : str\n    Nombre original del archivo.\nhash_sha256 : str\n    Hash SHA-256\
+        \ del archivo (64 caracteres hex).\ncalidad_suficiente : bool\n    True si\
+        \ la imagen tiene calidad suficiente para análisis.\nnitidez : float | None\n\
+        \    Puntuación de nitidez (0.0 - 1.0). Opcional.\niluminacion : float | None\n\
+        \    Puntuación de iluminación (0.0 - 1.0). Opcional."
+    ImagenResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tipo_vista:
+          type: string
+          title: Tipo Vista
+        formato:
+          type: string
+          title: Formato
+        nombre_archivo:
+          type: string
+          title: Nombre Archivo
+        calidad_suficiente:
+          type: boolean
+          title: Calidad Suficiente
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - tipo_vista
+      - formato
+      - nombre_archivo
+      - calidad_suficiente
+      - created_at
+      title: ImagenResponse
+      description: "Response body para una imagen intraoral.\n\nAttributes\n----------\n\
+        id : UUID\n    Identificador único de la imagen.\ntipo_vista : str\n    Vista\
+        \ de la imagen.\nformato : str\n    Formato del archivo.\nnombre_archivo :\
+        \ str\n    Nombre original del archivo.\ncalidad_suficiente : bool\n    True\
+        \ si la imagen tiene calidad suficiente.\ncreated_at : datetime\n    Timestamp\
+        \ de creación."
+    InferenciaResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        estudio_id:
+          type: string
+          format: uuid
+          title: Estudio Id
+        modelo_ml_id:
+          type: string
+          format: uuid
+          title: Modelo Ml Id
+        estado:
+          type: string
+          title: Estado
+        worker_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Worker Id
+        gpu_utilizada:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gpu Utilizada
+        tiempo_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tiempo Ms
+        error_mensaje:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Mensaje
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        completed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completed At
+      type: object
+      required:
+      - id
+      - estudio_id
+      - modelo_ml_id
+      - estado
+      - created_at
+      title: InferenciaResponse
+      description: "Response body para el estado de una inferencia IA.\n\nAttributes\n\
+        ----------\nid : UUID\n    Identificador único de la inferencia.\nestudio_id\
+        \ : UUID\n    ID del estudio analizado.\nmodelo_ml_id : UUID\n    ID del modelo\
+        \ ML que ejecutó la inferencia.\nestado : str\n    Estado: PENDIENTE | EN_PROCESO\
+        \ | COMPLETADO | FALLIDO.\nworker_id : str | None\n    Worker que ejecutó\
+        \ la inferencia. None si aún no inició.\ngpu_utilizada : str | None\n    GPU\
+        \ usada. None si no aplica.\ntiempo_ms : float | None\n    Tiempo de ejecución\
+        \ en milisegundos. None hasta completar.\nerror_mensaje : str | None\n   \
+        \ Mensaje de error. None si no falló.\ncreated_at : datetime\n    Timestamp\
+        \ de creación.\ncompleted_at : datetime | None\n    Timestamp de finalización.\
+        \ None hasta completar o fallar."
+    ModeloResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        nombre:
+          type: string
+          title: Nombre
+        version:
+          type: string
+          title: Version
+        tipo:
+          type: string
+          title: Tipo
+        f1_score:
+          type: number
+          title: F1 Score
+        precision_score:
+          type: number
+          title: Precision Score
+        recall_score:
+          type: number
+          title: Recall Score
+        aprobado_produccion:
+          type: boolean
+          title: Aprobado Produccion
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - nombre
+      - version
+      - tipo
+      - f1_score
+      - precision_score
+      - recall_score
+      - aprobado_produccion
+      - created_at
+      title: ModeloResponse
+      description: "Response body para un modelo ML registrado.\n\nAttributes\n----------\n\
+        id : UUID\n    Identificador único del modelo.\nnombre : str\n    Nombre del\
+        \ modelo.\nversion : str\n    Versión del modelo.\ntipo : str\n    Tipo: YOLO\
+        \ | SVM | RANDOM_FOREST | MOBILENET | EFFICIENTNET.\nf1_score : float\n  \
+        \  F1-Score en el set de validación.\nprecision_score : float\n    Precision\
+        \ en el set de validación.\nrecall_score : float\n    Recall en el set de\
+        \ validación.\naprobado_produccion : bool\n    True si está habilitado para\
+        \ producción (f1 >= 0.85).\ncreated_at : datetime\n    Timestamp de registro."
+    PacienteCreate:
+      properties:
+        dni:
+          type: string
+          maxLength: 8
+          minLength: 8
+          pattern: ^\d{8}$
+          title: Dni
+        nombres:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Nombres
+        apellidos:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Apellidos
+        fecha_nacimiento:
+          type: string
+          format: date
+          title: Fecha Nacimiento
+        sexo:
+          type: string
+          pattern: ^(M|F|OTRO)$
+          title: Sexo
+        telefono:
+          type: string
+          maxLength: 20
+          title: Telefono
+        email:
+          type: string
+          format: email
+          title: Email
+      type: object
+      required:
+      - dni
+      - nombres
+      - apellidos
+      - fecha_nacimiento
+      - sexo
+      - telefono
+      - email
+      title: PacienteCreate
+      description: "Request body para registrar un nuevo paciente.\n\nAttributes\n\
+        ----------\ndni : str\n    Documento de identidad peruano. Exactamente 8 dígitos.\n\
+        nombres : str\n    Nombres del paciente.\napellidos : str\n    Apellidos del\
+        \ paciente.\nfecha_nacimiento : date\n    Fecha de nacimiento.\nsexo : str\n\
+        \    'M', 'F' u 'OTRO'.\ntelefono : str\n    Teléfono en formato peruano (9XXXXXXXX)\
+        \ o internacional (+X...).\nemail : EmailStr\n    Correo electrónico válido."
+    PacienteResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        dni:
+          type: string
+          title: Dni
+        nombres:
+          type: string
+          title: Nombres
+        apellidos:
+          type: string
+          title: Apellidos
+        fecha_nacimiento:
+          type: string
+          format: date
+          title: Fecha Nacimiento
+        sexo:
+          type: string
+          title: Sexo
+        telefono:
+          type: string
+          title: Telefono
+        email:
+          type: string
+          title: Email
+        estado:
+          type: string
+          title: Estado
+      type: object
+      required:
+      - id
+      - dni
+      - nombres
+      - apellidos
+      - fecha_nacimiento
+      - sexo
+      - telefono
+      - email
+      - estado
+      title: PacienteResponse
+      description: "Response body para datos de un paciente.\n\nAttributes\n----------\n\
+        id : UUID\n    Identificador único.\ndni : str\n    Documento de identidad.\n\
+        nombres : str\n    Nombres del paciente.\napellidos : str\n    Apellidos del\
+        \ paciente.\nfecha_nacimiento : date\n    Fecha de nacimiento.\nsexo : str\n\
+        \    Sexo del paciente.\ntelefono : str\n    Teléfono de contacto.\nemail\
+        \ : str\n    Correo electrónico.\nestado : str\n    'ACTIVO' o 'INACTIVO'."
+    RechazarRequest:
+      properties:
+        odontologo_id:
+          type: string
+          format: uuid
+          title: Odontologo Id
+        motivo:
+          type: string
+          minLength: 1
+          title: Motivo
+      type: object
+      required:
+      - odontologo_id
+      - motivo
+      title: RechazarRequest
+      description: "Request body para rechazar un diagnóstico sugerido por IA.\n\n\
+        Attributes\n----------\nodontologo_id : UUID\n    ID del odontólogo que rechaza.\n\
+        motivo : str\n    Motivo obligatorio del rechazo."
+    SolicitarAnalisisRequest:
+      properties:
+        modelo_ml_id:
+          type: string
+          format: uuid
+          title: Modelo Ml Id
+      type: object
+      required:
+      - modelo_ml_id
+      title: SolicitarAnalisisRequest
+      description: "Request body para solicitar análisis IA sobre un estudio.\n\n\
+        Attributes\n----------\nmodelo_ml_id : UUID\n    ID del modelo ML que ejecutará\
+        \ la inferencia."
+    ValidarRequest:
+      properties:
+        odontologo_id:
+          type: string
+          format: uuid
+          title: Odontologo Id
+        notas:
+          type: string
+          minLength: 1
+          title: Notas
+      type: object
+      required:
+      - odontologo_id
+      - notas
+      title: ValidarRequest
+      description: "Request body para validar un diagnóstico sugerido por IA.\n\n\
+        Attributes\n----------\nodontologo_id : UUID\n    ID del odontólogo que valida.\n\
+        notas : str\n    Notas clínicas obligatorias de la validación."
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
