@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: dental-cdss-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: oregon
+    branch: main
+
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: MODEL_PATH
+        value: /opt/render/project/src/ml/models/best.pt
+      - key: MODEL_CONFIDENCE_THRESHOLD
+        value: "0.40"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: DEBUG
+        value: "False"
+
+    # Render ejecuta este comando ANTES de iniciar el servidor.
+    # Garantiza que las migraciones de Alembic se aplican en cada deploy.
+    preDeployCommand: "python -m alembic upgrade head"
+
+    healthCheckPath: /health
+
